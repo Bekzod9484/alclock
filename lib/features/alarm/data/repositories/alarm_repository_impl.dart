@@ -29,12 +29,23 @@ class AlarmRepositoryImpl implements AlarmRepository {
 
   @override
   void scheduleAlarm(AlarmModel alarm) {
+    print('🔔 [AlarmRepository] scheduleAlarm called: id=${alarm.id}, enabled=${alarm.isEnabled}, active=${alarm.isActive}');
+    
     // Schedule in background - non-blocking
     unawaited(Future.microtask(() async {
-      if (alarm.isEnabled && alarm.isActive) {
-        await _alarmService.scheduleAlarm(alarm);
-      } else {
-        await _alarmService.cancelAlarmById(alarm.id);
+      try {
+        if (alarm.isEnabled && alarm.isActive) {
+          print('🔔 [AlarmRepository] Alarm is enabled and active, scheduling...');
+          await _alarmService.scheduleAlarm(alarm);
+          print('✅ [AlarmRepository] Alarm scheduled successfully');
+        } else {
+          print('🔔 [AlarmRepository] Alarm is disabled or inactive, cancelling...');
+          await _alarmService.cancelAlarmById(alarm.id);
+          print('✅ [AlarmRepository] Alarm cancelled successfully');
+        }
+      } catch (e, stackTrace) {
+        print('❌ [AlarmRepository] Error in scheduleAlarm: $e');
+        print('❌ [AlarmRepository] Stack trace: $stackTrace');
       }
     }));
   }

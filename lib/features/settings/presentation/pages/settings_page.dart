@@ -348,12 +348,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         subtitle: AppLocalizations.of(context)?.automaticallyDetectSleep ?? 'Automatically detect sleep',
                         trailing: Switch(
                           value: settings.autoModeEnabled,
-                          onChanged: (value) {
+                          onChanged: (value) async {
                             debugPrint('🤖 Auto Mode toggled: $value');
                             _updateSettings(settings.copyWith(autoModeEnabled: value));
+                            
+                            // Start/stop automatic sleep tracker
+                            final tracker = ref.read(automaticSleepTrackerProvider);
                             if (value) {
+                              await tracker.start();
                               debugPrint('   → Sleep tracking will use automatic detection');
                             } else {
+                              await tracker.stop();
                               debugPrint('   → Sleep tracking will use manual mode');
                             }
                           },

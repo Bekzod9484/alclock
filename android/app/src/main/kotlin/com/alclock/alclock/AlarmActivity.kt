@@ -14,18 +14,38 @@ class AlarmActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Make full-screen and show over lock screen
+        android.util.Log.d("AlarmActivity", "🔔 AlarmActivity onCreate called")
+        
+        // CRITICAL: Make full-screen and show over lock screen
+        // This ensures alarm appears even when phone is locked
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
-        } else {
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_FULLSCREEN
-            )
+            android.util.Log.d("AlarmActivity", "✅ setShowWhenLocked(true) and setTurnScreenOn(true) called")
         }
+        
+        // CRITICAL: Add flags for ALL Android versions
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+            WindowManager.LayoutParams.FLAG_FULLSCREEN or
+            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        )
+        
+        android.util.Log.d("AlarmActivity", "✅ Window flags set for lock screen display")
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Ensure screen stays on when activity resumes
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+    
+    override fun onNewIntent(Intent intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Handle new alarm intent (e.g., when another alarm triggers while this one is showing)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

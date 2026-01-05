@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +29,7 @@ class _AddAlarmDialogState extends ConsumerState<AddAlarmDialog> {
   final Set<int> selectedDays = <int>{};
   String selectedSoundName = 'alarm1';
   String? note;
+  bool _mathLockEnabled = false; // PLAN HARD mode
   bool _isDisposed = false;
 
   // Short weekday names in Uzbek
@@ -49,8 +51,10 @@ class _AddAlarmDialogState extends ConsumerState<AddAlarmDialog> {
         }
         selectedSoundName = widget.existingAlarm!.soundName ?? 'alarm1';
         note = widget.existingAlarm!.note;
+        _mathLockEnabled = widget.existingAlarm!.mathLockEnabled;
       } else {
         selectedSoundName = 'alarm1';
+        _mathLockEnabled = false; // Default: PLAN HARD is OFF
         // Will assign random motivation when dialog opens
       }
     } catch (e) {
@@ -148,7 +152,11 @@ class _AddAlarmDialogState extends ConsumerState<AddAlarmDialog> {
         volume: widget.existingAlarm?.volume ?? 0.8,
         isActive: widget.existingAlarm?.isActive ?? true,
         note: finalNote,
+        mathLockEnabled: _mathLockEnabled,
       );
+
+      // Debug log for PLAN HARD
+      print('[PLAN HARD] Alarm saved. mathLockEnabled=$_mathLockEnabled');
 
       // Close dialog immediately (synchronous)
       if (mounted && !_isDisposed) {
@@ -176,6 +184,9 @@ class _AddAlarmDialogState extends ConsumerState<AddAlarmDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    
+    // Debug: Check platform and switch state
+    print('[PLAN HARD] Build called. Platform.isAndroid=${Platform.isAndroid}, _mathLockEnabled=$_mathLockEnabled');
     
     // Get default sound from settings if creating new alarm (only once)
     // Use ref.listen instead of ref.watch to avoid rebuilds
@@ -326,6 +337,44 @@ class _AddAlarmDialogState extends ConsumerState<AddAlarmDialog> {
                   );
                 }),
               ),
+              
+              const SizedBox(height: AppSizes.paddingLarge),
+              
+              // PLAN HARD Switch (Android only) - after Repeat, before Note
+              if (Platform.isAndroid)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: SwitchListTile(
+                      value: _mathLockEnabled,
+                      onChanged: (value) {
+                        setState(() {
+                          _mathLockEnabled = value;
+                        });
+                        print('[PLAN HARD] Switch toggled: $value');
+                      },
+                      title: const Text(
+                        'PLAN HARD',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Alarmni o\'chirish uchun tenglama yechiladi',
+                      ),
+                      secondary: const Icon(
+                        Icons.lock,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ),
+                ),
               
               const SizedBox(height: AppSizes.paddingLarge),
               

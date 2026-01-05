@@ -71,7 +71,10 @@ class WeeklySleepQualityCalculator {
   }
 
   /// Sleep Timing Score (20% weight)
-  /// Ideal sleep start: 22:00-00:00
+  /// Rules:
+  /// - Before 23:00 = "early" (100% - excellent)
+  /// - 23:00-00:00 = "normal" (100% - ideal)
+  /// - After 00:00 = "late" (decreasing score)
   static double _calculateTimingScore(List<SleepRecordModel> records) {
     if (records.isEmpty) return 0.0;
 
@@ -82,20 +85,28 @@ class WeeklySleepQualityCalculator {
       final hour = record.sleepStart!.hour;
       double timingPercent;
 
-      // 21:00–00:00 → 100%
-      if (hour >= 21 || hour == 0) {
+      // Before 23:00 = early (excellent) → 100%
+      if (hour < 23) {
         timingPercent = 100.0;
-      } else if (hour == 1) {
-        // 00:00–01:00 → 80% (but 00:00 is already 100%, so 01:00 is 80%)
+      } 
+      // 23:00-00:00 = normal (ideal) → 100%
+      else if (hour == 23 || hour == 0) {
+        timingPercent = 100.0;
+      } 
+      // 01:00 = late but acceptable → 80%
+      else if (hour == 1) {
         timingPercent = 80.0;
-      } else if (hour == 2) {
-        // 01:00–02:00 → 60%
+      } 
+      // 02:00 = very late → 60%
+      else if (hour == 2) {
         timingPercent = 60.0;
-      } else if (hour == 3) {
-        // 02:00–03:00 → 40%
+      } 
+      // 03:00 = extremely late → 40%
+      else if (hour == 3) {
         timingPercent = 40.0;
-      } else {
-        // 03:00+ → 20%
+      } 
+      // 04:00+ = extremely late → 20%
+      else {
         timingPercent = 20.0;
       }
 

@@ -28,7 +28,9 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService(hive);
 });
 
-/// Alarm Service (singleton)
+/// Alarm Service (singleton) - platform-aware
+/// - Android: Uses REAL AlarmManager
+/// - iOS: Uses NotificationService
 final alarmServiceProvider = Provider<AlarmService>((ref) {
   final hive = ref.watch(initializedHiveServiceProvider);
   final notificationService = ref.watch(notificationServiceProvider);

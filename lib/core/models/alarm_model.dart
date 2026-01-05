@@ -31,6 +31,9 @@ class AlarmModel extends HiveObject {
   @HiveField(8)
   String? note;
 
+  @HiveField(9)
+  bool mathLockEnabled; // PLAN HARD mode - requires math equation to stop alarm
+
   AlarmModel({
     required this.id,
     required this.time,
@@ -41,6 +44,7 @@ class AlarmModel extends HiveObject {
     this.volume = 0.8,
     this.isActive = true,
     this.note,
+    this.mathLockEnabled = false, // Default: PLAN HARD is OFF
   });
 
   AlarmModel copyWith({
@@ -53,6 +57,7 @@ class AlarmModel extends HiveObject {
     double? volume,
     bool? isActive,
     String? note,
+    bool? mathLockEnabled,
   }) {
     return AlarmModel(
       id: id ?? this.id,
@@ -64,6 +69,7 @@ class AlarmModel extends HiveObject {
       volume: volume ?? this.volume,
       isActive: isActive ?? this.isActive,
       note: note ?? this.note,
+      mathLockEnabled: mathLockEnabled ?? this.mathLockEnabled,
     );
   }
 }

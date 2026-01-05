@@ -70,6 +70,7 @@ class NotificationService {
       final androidPlugin = _local.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
 
+      // Create alarm notification channel with proper configuration
       await androidPlugin?.createNotificationChannel(
         const AndroidNotificationChannel(
           'alarm_channel',
@@ -77,6 +78,8 @@ class NotificationService {
           description: 'Notifications for alarm reminders',
           importance: Importance.max,
           playSound: true,
+          enableVibration: true,
+          // Note: category and audioAttributesUsage are set in notification details
         ),
       );
     }
@@ -86,15 +89,19 @@ class NotificationService {
 
   void _handleNotificationTap(String payload) {
     try {
+      // Try to parse JSON payload
       final data = jsonDecode(payload) as Map<String, dynamic>;
       final alarmId = data['alarmId'] as String? ?? '';
+      final soundName = data['soundName'] as String?;
       if (alarmId.isNotEmpty) {
-        AlarmNavigationService.openAlarmPage(alarmId);
+        print('📱 Notification tapped - opening alarm: $alarmId');
+        AlarmNavigationService.openAlarmPage(alarmId, soundName: soundName);
       }
     } catch (e) {
-      // Fallback for old format
+      // Fallback for old format (simple string payload)
       final alarmId = payload;
       if (alarmId.isNotEmpty) {
+        print('📱 Notification tapped - opening alarm (fallback): $alarmId');
         AlarmNavigationService.openAlarmPage(alarmId);
       }
     }
@@ -128,7 +135,11 @@ class NotificationService {
     final androidSoundName = AlarmSoundModel.getAndroidSoundName(selectedSound);
     final androidSound = RawResourceAndroidNotificationSound(androidSoundName);
 
-    final iosSoundName = '${selectedSound}.wav';
+    // iOS sound name - must match bundled sound file
+    // iOS notification sounds must be in the app bundle (e.g., ios/Runner/AlarmSounds)
+    // Format: 'alarm1.wav', 'alarm2.wav', etc.
+    // If sound is not found, iOS will fallback to default notification sound
+    final iosSoundName = AlarmSoundModel.getIOSSoundName(selectedSound);
 
     final androidDetails = AndroidNotificationDetails(
       'alarm_channel',
@@ -140,6 +151,7 @@ class NotificationService {
       enableVibration: true,
       sound: androidSound,
       fullScreenIntent: true,
+      category: AndroidNotificationCategory.alarm,
     );
 
     final iosDetails = DarwinNotificationDetails(
@@ -193,7 +205,11 @@ class NotificationService {
     final androidSoundName = AlarmSoundModel.getAndroidSoundName(selectedSound);
     final androidSound = RawResourceAndroidNotificationSound(androidSoundName);
 
-    final iosSoundName = '${selectedSound}.wav';
+    // iOS sound name - must match bundled sound file
+    // iOS notification sounds must be in the app bundle (e.g., ios/Runner/AlarmSounds)
+    // Format: 'alarm1.wav', 'alarm2.wav', etc.
+    // If sound is not found, iOS will fallback to default notification sound
+    final iosSoundName = AlarmSoundModel.getIOSSoundName(selectedSound);
 
     final androidDetails = AndroidNotificationDetails(
       'alarm_channel',
@@ -205,6 +221,7 @@ class NotificationService {
       enableVibration: settings.vibrationEnabled,
       sound: androidSound,
       fullScreenIntent: true,
+      category: AndroidNotificationCategory.alarm,
     );
 
     final iosDetails = DarwinNotificationDetails(
@@ -288,6 +305,7 @@ class NotificationService {
   Future<void> showImmediateTest() async {
     if (!_initialized) await initialize();
 
+    const androidSound = RawResourceAndroidNotificationSound('alarm1');
     const androidDetails = AndroidNotificationDetails(
       'alarm_channel',
       'Alarm Notifications',
@@ -295,6 +313,10 @@ class NotificationService {
       importance: Importance.max,
       priority: Priority.max,
       playSound: true,
+      enableVibration: true,
+      sound: androidSound,
+      fullScreenIntent: true,
+      category: AndroidNotificationCategory.alarm,
     );
 
     const iosDetails = DarwinNotificationDetails(

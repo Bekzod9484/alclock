@@ -6,8 +6,13 @@ import 'package:alclock/l10n/app_localizations.dart';
 import 'core/constants/colors.dart';
 import 'core/constants/sizes.dart';
 import 'core/theme/app_theme.dart';
-import 'core/widgets/gradient_background.dart';
 import 'core/providers/locale_provider.dart';
+import 'core/providers/shared_providers.dart';
+import 'services/alarm_navigation_service.dart';
+import 'features/alarm/presentation/pages/alarm_page.dart';
+import 'features/sleep/presentation/pages/statistics_page.dart';
+import 'features/settings/presentation/pages/settings_page.dart';
+import 'features/settings/presentation/providers/settings_provider.dart';
 
 class App extends ConsumerStatefulWidget {
   const App({super.key});
@@ -19,22 +24,59 @@ class App extends ConsumerStatefulWidget {
 class _AppState extends ConsumerState<App> {
   int _currentIndex = 0;
 
-  /// Temporary simple pages — works everywhere
+  /// Actual pages
   final List<Widget> _pages = const [
-    Center(child: Text("ALARM PAGE", style: TextStyle(fontSize: 26))),
-    Center(child: Text("STATISTICS PAGE", style: TextStyle(fontSize: 26))),
-    Center(child: Text("SETTINGS PAGE", style: TextStyle(fontSize: 26))),
+    AlarmPage(),
+    StatisticsPage(),
+    SettingsPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Start automatic sleep tracker if auto mode is enabled
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeSleepTracker();
+    });
+  }
+
+  Future<void> _initializeSleepTracker() async {
+    try {
+      final settingsAsync = ref.read(settingsProvider);
+      settingsAsync.whenData((settings) async {
+        if (settings.autoModeEnabled) {
+          final tracker = ref.read(automaticSleepTrackerProvider);
+          await tracker.start();
+        }
+      });
+    } catch (e) {
+      print('❌ Error initializing sleep tracker: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final currentLocale = ref.watch(currentLocaleProvider);
+
+    // Watch settings to start/stop sleep tracker
+    ref.listen<AsyncValue>(settingsProvider, (previous, next) {
+      next.whenData((settings) async {
+        final tracker = ref.read(automaticSleepTrackerProvider);
+        if (settings.autoModeEnabled && !tracker.isTracking) {
+          await tracker.start();
+        } else if (!settings.autoModeEnabled && tracker.isTracking) {
+          await tracker.stop();
+        }
+      });
+    });
 
     return MaterialApp(
       title: 'AlClock',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       locale: currentLocale,
+      navigatorKey: AlarmNavigationService
+          .navigatorKey, // Global navigator key for notification navigation
       supportedLocales: const [
         Locale('uz', 'UZ'),
         Locale('ru', 'RU'),
@@ -46,17 +88,20 @@ class _AppState extends ConsumerState<App> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: GradientBackground(
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: _pages[_currentIndex],
-          bottomNavigationBar: _buildBottomNav(),
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: IndexedStack(
+            index: _currentIndex,
+            children: _pages,
+          ),
+          bottomNavigationBar: _buildBottomNav(context),
         ),
       ),
     );
   }
 
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return SafeArea(
       child: Container(
         decoration: BoxDecoration(
@@ -85,15 +130,15 @@ class _AppState extends ConsumerState<App> {
             items: [
               BottomNavigationBarItem(
                 icon: _navIcon(Icons.alarm, 0),
-                label: AppLocalizations.of(context)?.alarm ?? 'Alarm',
+                label: l10n?.alarm ?? 'Alarm',
               ),
               BottomNavigationBarItem(
                 icon: _navIcon(Icons.bar_chart, 1),
-                label: AppLocalizations.of(context)?.statistics ?? 'Statistics',
+                label: l10n?.statistics ?? 'Statistics',
               ),
               BottomNavigationBarItem(
                 icon: _navIcon(Icons.settings, 2),
-                label: AppLocalizations.of(context)?.settings ?? 'Settings',
+                label: l10n?.settings ?? 'Settings',
               ),
             ],
           ),

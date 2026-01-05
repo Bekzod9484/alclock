@@ -89,9 +89,11 @@ class AlarmItem extends ConsumerWidget {
           Switch(
             value: alarm.isEnabled,
             onChanged: (value) {
+              print('🔔 [AlarmItem] Switch toggled: alarmId=${alarm.id}, newValue=$value');
               // ONLY toggle alarm - no dialogs, no navigation
               final controller = ref.read(alarmListProvider.notifier);
               controller.toggleAlarm(alarm.id, value);
+              print('🔔 [AlarmItem] toggleAlarm called');
             },
             activeColor: AppColors.accent,
           ),

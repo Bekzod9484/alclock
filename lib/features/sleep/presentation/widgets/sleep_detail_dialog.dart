@@ -335,7 +335,7 @@ class _SleepDetailDialogState extends ConsumerState<SleepDetailDialog> {
                     ),
                     const SizedBox(height: AppSizes.paddingSmall),
                     Text(
-                      SleepAdviceGenerator.getAdvice(record) ?? '',
+                      SleepAdviceGenerator.buildDailyAdvice(record),
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,

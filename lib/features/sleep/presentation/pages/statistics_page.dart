@@ -448,6 +448,10 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
                           builder: (context) {
                             final weekDate = ref.watch(weekDateProvider);
                             final weekDates = AppDateUtils.getWeekDates(weekDate);
+                            // Safe access - getWeekDates always returns 7 elements
+                            if (weekDates.length < 7) {
+                              return const SizedBox.shrink();
+                            }
                             final monday = weekDates[0];
                             final sunday = weekDates[6];
                             final mondayStr = '${monday.day}/${monday.month}';

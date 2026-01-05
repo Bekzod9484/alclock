@@ -22,14 +22,27 @@ final alarmListProvider =
 /// ALARM LIST CONTROLLER
 class AlarmListController extends StateNotifier<List<AlarmModel>> {
   final AlarmRepository _repo;
+  bool _isLoading = false;
+  Timer? _reloadTimer;
 
   AlarmListController(this._repo) : super([]) {
     // Load initial data in background - use Future.microtask to avoid blocking
     Future.microtask(() => _loadAlarms());
   }
 
+  @override
+  void dispose() {
+    _reloadTimer?.cancel();
+    super.dispose();
+  }
+
   /// Load alarms from repository (background)
+  /// Prevents race conditions with debouncing
   Future<void> _loadAlarms() async {
+    // Prevent multiple simultaneous loads
+    if (_isLoading) return;
+    
+    _isLoading = true;
     try {
       final data = await _repo.getAllAlarms();
       // Ensure all alarms are valid
@@ -45,10 +58,21 @@ class AlarmListController extends StateNotifier<List<AlarmModel>> {
       print('❌ Error loading alarms: $e');
       // Handle error silently or log it
       state = [];
+    } finally {
+      _isLoading = false;
     }
   }
 
+  /// Debounced reload - prevents multiple rapid reloads
+  void _debouncedReload() {
+    _reloadTimer?.cancel();
+    _reloadTimer = Timer(const Duration(milliseconds: 300), () {
+      unawaited(_loadAlarms());
+    });
+  }
+
   /// Add new alarm (optimistic update)
+  /// Safe async execution - won't block UI
   void addAlarm(AlarmModel alarm) {
     try {
       // Validate alarm before adding
@@ -60,26 +84,41 @@ class AlarmListController extends StateNotifier<List<AlarmModel>> {
       // 1. Update state immediately (optimistic)
       state = [...state, alarm];
       
-      // 2. Save to Hive in background
-      unawaited(_repo.saveAlarm(alarm).catchError((e) {
-        print('❌ Error saving alarm: $e');
-        // Reload to get correct state
-        unawaited(_loadAlarms());
-      }));
-      
-      // 3. Schedule in background
-      _repo.scheduleAlarm(alarm);
-      
-      // 4. Reload from storage in background to ensure consistency
-      unawaited(_loadAlarms());
+      // 2. Save to Hive and schedule in background (non-blocking)
+      unawaited(_saveAndScheduleAlarm(alarm));
     } catch (e) {
       print('❌ Error adding alarm: $e');
       // Reload to get correct state
-      unawaited(_loadAlarms());
+      _debouncedReload();
+    }
+  }
+
+  /// Internal method to save and schedule alarm safely
+  Future<void> _saveAndScheduleAlarm(AlarmModel alarm) async {
+    try {
+      print('💾 [AlarmProvider] Saving alarm to Hive: ${alarm.id}, enabled: ${alarm.isEnabled}');
+      
+      // Save to Hive first
+      await _repo.saveAlarm(alarm);
+      print('✅ [AlarmProvider] Alarm saved to Hive');
+      
+      // Then schedule (this will cancel existing alarm first)
+      print('🔔 [AlarmProvider] Calling scheduleAlarm...');
+      _repo.scheduleAlarm(alarm);
+      print('✅ [AlarmProvider] scheduleAlarm called (async)');
+      
+      // Debounced reload to ensure consistency
+      _debouncedReload();
+    } catch (e, stackTrace) {
+      print('❌ [AlarmProvider] Error saving/scheduling alarm: $e');
+      print('❌ [AlarmProvider] Stack trace: $stackTrace');
+      // Reload to get correct state
+      _debouncedReload();
     }
   }
 
   /// Update existing alarm (optimistic update)
+  /// Safe async execution - won't block UI
   void updateAlarm(AlarmModel alarm) {
     try {
       // Validate alarm before updating
@@ -99,60 +138,70 @@ class AlarmListController extends StateNotifier<List<AlarmModel>> {
         state = [...state, alarm];
       }
       
-      // 2. Save to Hive in background
-      unawaited(_repo.saveAlarm(alarm).catchError((e) {
-        print('❌ Error saving alarm: $e');
-        // Reload to get correct state
-        unawaited(_loadAlarms());
-      }));
-      
-      // 3. Schedule in background
-      _repo.scheduleAlarm(alarm);
-      
-      // 4. Reload from storage in background
-      unawaited(_loadAlarms());
+      // 2. Save to Hive and schedule in background (non-blocking)
+      unawaited(_saveAndScheduleAlarm(alarm));
     } catch (e) {
       print('❌ Error updating alarm: $e');
       // Reload to get correct state
-      unawaited(_loadAlarms());
+      _debouncedReload();
     }
   }
 
   /// Delete alarm (optimistic update)
+  /// Safe async execution - won't block UI
   void deleteAlarm(String id) {
     // 1. Update state immediately (optimistic)
     state = state.where((a) => a.id != id).toList();
     
-    // 2. Cancel alarm in background
-    _repo.cancelAlarm(id);
-    
-    // 3. Delete from Hive in background
-    unawaited(_repo.deleteAlarm(id));
-    
-    // 4. Reload from storage in background
-    unawaited(_loadAlarms());
+    // 2. Cancel alarm and delete from Hive in background (non-blocking)
+    unawaited(_cancelAndDeleteAlarm(id));
+  }
+
+  /// Internal method to cancel and delete alarm safely
+  Future<void> _cancelAndDeleteAlarm(String id) async {
+    try {
+      // Cancel alarm first
+      _repo.cancelAlarm(id);
+      
+      // Then delete from Hive
+      await _repo.deleteAlarm(id);
+      
+      // Debounced reload to ensure consistency
+      _debouncedReload();
+    } catch (e) {
+      print('❌ Error cancelling/deleting alarm: $e');
+      // Reload to get correct state
+      _debouncedReload();
+    }
   }
 
   /// Toggle alarm ON/OFF (optimistic update)
+  /// CRITICAL: This is called from UI, must be instant and safe
   void toggleAlarm(String id, bool enabled) {
+    print('🔔 [AlarmProvider] Toggle alarm called: id=$id, enabled=$enabled');
+    
     // 1. Find alarm
     final index = state.indexWhere((a) => a.id == id);
-    if (index == -1) return;
+    if (index == -1) {
+      print('⚠️ [AlarmProvider] Alarm not found for toggle: $id');
+      return;
+    }
     
-    // 2. Update state immediately (optimistic)
+    // 2. Update state immediately (optimistic) - UI responds instantly
     final alarm = state[index];
+    print('🔔 [AlarmProvider] Found alarm: ${alarm.id}, current enabled: ${alarm.isEnabled}');
+    
     final updated = alarm.copyWith(isEnabled: enabled);
     final newState = [...state];
     newState[index] = updated;
     state = newState;
     
-    // 3. Save to Hive in background
-    unawaited(_repo.saveAlarm(updated));
+    print('🔔 [AlarmProvider] State updated, new enabled: ${updated.isEnabled}');
     
-    // 4. Schedule or cancel in background
-    _repo.scheduleAlarm(updated);
-    
-    // 5. Reload from storage in background
-    unawaited(_loadAlarms());
+    // 3. Save to Hive and schedule/cancel in background (non-blocking)
+    // scheduleAlarm will cancel existing alarm first, then schedule if enabled
+    print('🔔 [AlarmProvider] Starting save and schedule...');
+    unawaited(_saveAndScheduleAlarm(updated));
+    print('🔔 [AlarmProvider] Toggle alarm completed (async operation started)');
   }
 }
